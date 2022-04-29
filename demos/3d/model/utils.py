@@ -1,6 +1,32 @@
+import pathlib
 import numpy as np
 import torch
 from scipy.signal import stft
+from model.models.SELDNet import Seldnet_augmented
+
+def get_eval_model(pretrained_path, device='cpu'):
+    model = Seldnet_augmented(
+                time_dim=2400,
+                freq_dim=256,
+                input_channels=4,
+                output_classes=14,
+                pool_size=[[8, 2], [8, 2], [2, 2], [1, 1]],
+                pool_time=True,
+                rnn_size=256,
+                n_rnn=3,
+                fc_size=1024,
+                dropout_perc=0.3,
+                cnn_filters=[64, 128, 256, 512],
+                class_overlaps=3,
+                verbose=False,
+            )
+
+    model = model.to(device)
+    load_model(model, None, pretrained_path, device != 'cpu')
+
+    # set model to inference mode
+    model.eval()
+    return model
 
 '''
 Miscellaneous utilities
@@ -47,6 +73,8 @@ def spectrum_fast(x, nperseg=512, noverlap=128, window='hamming', cut_dc=True,
                         nperseg=nperseg,
                         noverlap=noverlap)
 
+    #seg_stft = librosa.stft(x, n_fft=nparseg, hop_length=noverlap)
+
     output = np.abs(seg_stft)
 
     if output_phase:
@@ -59,6 +87,7 @@ def spectrum_fast(x, nperseg=512, noverlap=128, window='hamming', cut_dc=True,
     if cut_last_timeframe:
         output = output[:,:,:-1]
 
+    #return np.rot90(np.abs(seg_stft))
     return output
 
 CLS_TO_IDX = {'Chink_and_clink':0,
@@ -75,23 +104,27 @@ CLS_TO_IDX = {'Chink_and_clink':0,
                'Scissors':11,
                'Telephone':12,
                'Writing':13,
-                'NOTHING': 14}
+               'NOTHING': 14}
 
 IDX_TO_CLS = {v: k for k, v in CLS_TO_IDX.items()}
 
-def predictions_list(sed, doa, max_loc_value=2.,num_frames=600, num_classes=14, max_overlaps=3):
+def predictions_list(sed, doa, n_frames, max_loc_value=2, num_classes=14, max_overlaps=3):
     '''
     Process sed and doa output matrices (model's output) and generate a list of active sounds
     and their location for every frame. The list has the correct format for the Challenge results
     submission.
     '''
-    predictions = []
+
+    output = []
     for i, (c, l) in enumerate(zip(sed, doa)):  #iterate all time frames
+        if i >= n_frames:
+            break
+        
         c = np.round(c)  #turn to 0/1 the class predictions with threshold 0.5
         l = l * max_loc_value  #turn back locations between -2,2 as in the original dataset
         l = l.reshape(num_classes, max_overlaps, 3)  #num_class, event number, coordinates
-        if np.sum(c) == 0:  
-             predictions.append([i, IDX_TO_CLS[14], 0, 0, 0]) 
+        if np.sum(c) == 0:  #if no sounds are detected in a frame
+            output.append([i, IDX_TO_CLS[14], 0, 0, 0])
         else:
             for j, e in enumerate(c):  #iterate all events
                 if e != 0:  #if an avent is predicted
@@ -99,8 +132,30 @@ def predictions_list(sed, doa, max_loc_value=2.,num_frames=600, num_classes=14, 
                     predicted_class = int(j/max_overlaps)
                     predicted_class_label = IDX_TO_CLS[predicted_class]
                     num_event = int(j%max_overlaps)
-                    curr_list = [i, predicted_class_label, l[predicted_class][num_event][0], l[predicted_class][num_event][1], l[predicted_class][num_event][2]]
+                    curr_list = [
+                        i, 
+                        predicted_class_label, 
+                        l[predicted_class][num_event][0] * 4 - 2, 
+                        (l[predicted_class][num_event][1] * 2 - 1) * 1.5, 
+                        l[predicted_class][num_event][2] * 2 - 1
+                        ]
 
-                    predictions.append(curr_list)
+                    output.append(curr_list)
 
-    return predictions
+    return output
+
+def get_inputs(audio_names: list):
+    inputs = []
+    for audio_filename in audio_names:
+        name = pathlib.Path(audio_filename).stem
+        gt_filename = f'{pathlib.Path(audio_filename).stem}.csv'
+        gt_filepath = str(pathlib.Path('assets', 'ground-truth', gt_filename))
+        audio_filepath = str(pathlib.Path('assets', 'audio', audio_filename))
+        inputs.append({
+            'name': name,
+            'gt_path': gt_filepath,
+            'audio_path': audio_filepath, 
+            'option': {'label': audio_filename, 'value': name}
+            }
+        )
+    return inputs

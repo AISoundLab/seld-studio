@@ -3,67 +3,67 @@ import dash_bootstrap_components as dbc
 from dash import html, dcc, Input, Output
 import pathlib
 import os
-import plotly.graph_objects as go
-from model.models.SELDNet import Seldnet_augmented
+import librosa
 import pandas as pd
+import plotly.express as px
+import torch
+import numpy as np
+from model.utils import predictions_list, get_eval_model, get_inputs, predictions_list, spectrum_fast
 
 app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-def get_options(names: list):
-    options = []
-    for n in names:
-        gt_filename = f'{pathlib.Path(n).stem}.csv'
-        gt_filepath = str(pathlib.Path('assets', 'ground-truth', gt_filename))
-        options.append(
-            {'label': n, 'value': gt_filepath}
-        )
-    return options
-
 script_dir = pathlib.Path(__file__).parent.resolve()
 audio_filenames = os.listdir(pathlib.Path(script_dir, 'assets', 'audio'))
-audio_options = get_options(audio_filenames)
+inputs = get_inputs(audio_filenames)
 
-scene = dict(dict(
-            xaxis = dict(range=[-2.5,2.5], autorange=False),
-            yaxis = dict(range=[-2,2], autorange=False),
-            zaxis = dict(range=[-1.5,1.5], autorange=False)))
+model_path = str(pathlib.Path(script_dir, 'assets', 'model', 'SELDNet_checkpoint.pt'))
+model = get_eval_model(model_path)
 
-def get_init_fig():
-    # microphone
-    new_fig = go.Figure(
-        layout=go.Layout(
-            scene=scene,
-            updatemenus=[dict(
-                type="buttons",
-                buttons=[dict(label="Play",
-                            method="animate",
-                            args=[None])])]
-        ),
-        data=[
-            go.Scatter3d(
-                text='microphone',
-                x=[0], 
-                y=[0], 
-                z=[0],
-                mode='markers',
-                name='microphone'), 
-            go.Scatter3d(
-                    visible=False,
-                    x=[0], 
-                    y=[0], 
-                    z=[0],
-                    mode='markers',
-                    name='ground truth')]
-    )
+def make_fig_df(df, legend):
+    return pd.DataFrame({
+            'legend': legend, 
+            'class': df['class'].replace('NOTHING', '[silence]'),
+            'x': df['x'],
+            'y': df['y'],
+            'z': df['z'],
+            'time(s)': df['frame']/10,
+            })
+
+def make_figure(gt_df=None, pred_df=None, n_frames=1):
+    # nothing loaded yet
+    df = pd.DataFrame({
+        'legend':'microphone',
+        'class': ['-' for _ in range(n_frames)],
+        'x':[0 for _ in range(n_frames)],
+        'y':[0 for _ in range(n_frames)],
+        'z':[0 for _ in range(n_frames)],
+        'time(s)': [i/10 for i in range(n_frames)],
+    })
+
+    if gt_df is not None and pred_df is not None:
+        new_gt_df = make_fig_df(gt_df, 'ground-truth')
+        new_pred_df = make_fig_df(pred_df, 'prediction')
+        df = pd.concat((df, new_gt_df, new_pred_df))
+    range_x= [-3.0, 3.0]
+    range_y= [-3.0, 3.0]
+    range_z= [-2.0, 2.0]
+    new_fig = px.scatter_3d(df, x='x', y='y', z='z', color='legend', text='class', 
+    animation_frame='time(s)', opacity=0.8,
+                        range_x=range_x, range_y=range_y, range_z=range_z, height=600)
+
+    if gt_df is not None:
+        new_fig.layout.updatemenus[0].buttons[0].args[1]["frame"]["duration"] = 100
 
     return new_fig
-  
-
-fig = get_init_fig()
+    
 gt_df_dict = {} 
-graph_init = False
-for opt in audio_options:
-    gt_df_dict[opt['value']] = pd.read_csv(opt['value'])
+tensor_dict = {}
+for input in inputs:
+    gt_df_dict[input['name']] = pd.read_csv(input['gt_path'])
+    tensor,_ = librosa.load(input['audio_path'], sr=32000, mono=False)
+    tensor = spectrum_fast(tensor, nperseg=512, noverlap=112, window="hamming", output_phase=False)
+    tensor= torch.tensor(tensor).float().unsqueeze(0)
+    tensor_dict[input['name']] = tensor
 
 switches = html.Div(
     [
@@ -80,41 +80,33 @@ switches = html.Div(
     ]
 )
 
-controls = dbc.Card(
-    dbc.CardBody(
-        [
-        html.Div(
+controls = html.Div(
             [
                 dbc.Label("Audio File"),
                 dbc.Select(
                     id="select-audio",
-                    options=audio_options
+                    options=list(map(lambda x : x['option'], inputs))
                 )
-            ]
-        ),  
-        switches
-        ]
-    )
-)
+            ])
 
 viewer = dbc.Card(
     [
         dbc.CardHeader("Viewer"),
         dbc.CardBody(
             [
-                dcc.Graph(
+                dcc.Loading(
+                    dcc.Graph(
                     id='graph',
-                    figure=fig,
+                ),type='cube'
                 )
+               
             ]
         ),
         dbc.CardFooter(
             [
             html.Div(
                 [
-                    dbc.Label(
-                        id="label-audio"
-                    ),
+                    controls
                 ]
             ), 
             ]
@@ -126,14 +118,8 @@ viewer = dbc.Card(
 
 app.layout = dbc.Container(
             [
-                dbc.CardGroup([
-                        viewer, 
-                        controls, 
-                ]
-                      
-                ),
+                viewer
             ],
-            fluid=True
         )
 
 @app.callback(
@@ -142,37 +128,21 @@ app.layout = dbc.Container(
 )
 def audio_selected(select_value):
     if select_value is not None:
-        df = gt_df_dict[select_value]
-        new_fig = get_init_fig()
-        frames = []
-        
-        # ground truth
-        for i in range(len(df)):
-            frames.append(
-                go.Frame(data=[
-                        go.Scatter3d(
-                            text='microphone',
-                            x=[0], 
-                            y=[0], 
-                            z=[0],
-                            mode='markers',
-                            name='microphone'),
-                        go.Scatter3d(
-                            visible=df.iloc[i]['class'] != 'NOTHING',
-                            text=df.iloc[i]['class'],
-                            x=[df.iloc[i]['x']], 
-                            y=[df.iloc[i]['y']], 
-                            z=[df.iloc[i]['z']],
-                            mode='markers',
-                            name='ground-truth')]
-                        ))
-
-        new_fig.update(dict(frames=frames))
+        gt_df = gt_df_dict[select_value]
+        x = tensor_dict[select_value]
+        with torch.no_grad():
+            sed, doa = model(x)
+        sed = sed.cpu().numpy().squeeze()
+        doa = doa.cpu().numpy().squeeze()
+        predictions = predictions_list(sed, doa, len(gt_df))
+        pred_df = pd.DataFrame(predictions, columns=['frame', 'class', 'x', 'y', 'z'])
+        new_fig = make_figure(gt_df, pred_df, len(gt_df))
 
         return new_fig
+    
 
-    return fig
+    return make_figure()
 
 
 if __name__ == "__main__":
-    app.run_server( debug=True)
+    app.run_server(debug=True)
