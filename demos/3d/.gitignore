@@ -1,0 +1,6 @@
+.Python
+bin/
+include/
+lib/
+backend/model/
+pip-selfcheck.json
