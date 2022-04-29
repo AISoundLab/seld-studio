@@ -1,1 +1,0 @@
-### Sound Event Localization and Detection Demo
