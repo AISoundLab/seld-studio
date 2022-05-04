@@ -29,10 +29,10 @@ The directory stucture AFTER running this script will be:
 root
 ...data
     ...processed
-        ...stereo_train
+        ...train
             ...data
             ...labels
-        ...stereo_test
+        ...test
             ...data
             ...labels
     ...train
@@ -70,8 +70,8 @@ DATA_DIR = os.path.join(WORKING_DIR, 'data')
 TRAIN_DIR = os.path.join(DATA_DIR, 'train')
 TEST_DIR = os.path.join(DATA_DIR, 'test')
 PROCESSED_DIR = os.path.join(DATA_DIR, 'processed')
-STEREO_TRAIN_DIR = os.path.join(PROCESSED_DIR, 'stereo_train')
-STEREO_TEST_DIR = os.path.join(PROCESSED_DIR, 'stereo_test')
+PROCESSED_TRAIN_DIR = os.path.join(PROCESSED_DIR, 'train')
+PROCESSED_TEST_DIR = os.path.join(PROCESSED_DIR, 'test')
 MODEL_DIR = os.path.join(WORKING_DIR, 'models', 'baseline')
 CHECKPOINT_DIR = os.path.join(MODEL_DIR, 'checkpoints')
 RESULTS_DIR = os.path.join(MODEL_DIR, 'results')
@@ -79,18 +79,18 @@ RESULTS_DIR = os.path.join(MODEL_DIR, 'results')
 # Create Directories
 if not os.path.exists(PROCESSED_DIR):
     os.makedirs(PROCESSED_DIR)
-if not os.path.exists(STEREO_TRAIN_DIR):
-    os.makedirs(STEREO_TRAIN_DIR)
-if not os.path.exists(os.path.join(STEREO_TRAIN_DIR, 'data')):
-    os.makedirs(os.path.join(STEREO_TRAIN_DIR, 'data'))  
-if not os.path.exists(os.path.join(STEREO_TRAIN_DIR, 'labels')):
-    os.makedirs(os.path.join(STEREO_TRAIN_DIR, 'labels'))  
-if not os.path.exists(STEREO_TEST_DIR):
-    os.makedirs(STEREO_TEST_DIR)
-if not os.path.exists(os.path.join(STEREO_TEST_DIR, 'data')):
-    os.makedirs(os.path.join(STEREO_TEST_DIR, 'data'))  
-if not os.path.exists(os.path.join(STEREO_TEST_DIR, 'labels')):
-    os.makedirs(os.path.join(STEREO_TEST_DIR, 'labels'))  
+if not os.path.exists(PROCESSED_TRAIN_DIR):
+    os.makedirs(PROCESSED_TRAIN_DIR)
+if not os.path.exists(os.path.join(PROCESSED_TRAIN_DIR, 'data')):
+    os.makedirs(os.path.join(PROCESSED_TRAIN_DIR, 'data'))  
+if not os.path.exists(os.path.join(PROCESSED_TRAIN_DIR, 'labels')):
+    os.makedirs(os.path.join(PROCESSED_TRAIN_DIR, 'labels'))  
+if not os.path.exists(PROCESSED_TEST_DIR):
+    os.makedirs(PROCESSED_TEST_DIR)
+if not os.path.exists(os.path.join(PROCESSED_TEST_DIR, 'data')):
+    os.makedirs(os.path.join(PROCESSED_TEST_DIR, 'data'))  
+if not os.path.exists(os.path.join(PROCESSED_TEST_DIR, 'labels')):
+    os.makedirs(os.path.join(PROCESSED_TEST_DIR, 'labels'))  
 if not os.path.exists(CHECKPOINT_DIR):
     os.makedirs(CHECKPOINT_DIR)
 if not os.path.exists(RESULTS_DIR):
@@ -207,5 +207,5 @@ def make_stereo(input_folder, processed_folder):
         extract_labels_from_csv(target_path, target_name, processed_folder)
 
 if __name__ == "__main__":
-    make_stereo(TRAIN_DIR, STEREO_TRAIN_DIR)
-    make_stereo(TEST_DIR, STEREO_TEST_DIR)
+    make_stereo(TRAIN_DIR, PROCESSED_TRAIN_DIR)
+    make_stereo(TEST_DIR, PROCESSED_TEST_DIR)
