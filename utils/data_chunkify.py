@@ -64,8 +64,8 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # Directories
-WORKING_DIR = os.path.join('..',os.getcwd())
-os.chdir(WORKING_DIR)
+os.chdir("..")
+WORKING_DIR = os.getcwd()
 DATA_DIR = os.path.join(WORKING_DIR, 'data')
 TRAIN_DIR = os.path.join(DATA_DIR, 'train')
 TEST_DIR = os.path.join(DATA_DIR, 'test')
@@ -174,7 +174,7 @@ def extract_labels_from_csv(target_path, target_name, processed_folder):
     count = 0
     for i in range(0, FILE_DURATION * 10, 10):
         df_temp = df.iloc[i:i+10]
-        filepath = os.path.join(processed_folder, 'labels', target_name[:-4] + '_chunk'+str(count)+'.csv')
+        filepath = os.path.join(processed_folder, 'labels', target_name[:-4] + '_chunck'+str(count)+'.csv')
         count += 1
         if count > FILE_DURATION:
             count = 0
