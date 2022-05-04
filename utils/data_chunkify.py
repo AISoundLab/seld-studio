@@ -65,6 +65,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # Directories
 WORKING_DIR = os.path.join('..',os.getcwd())
+os.chdir(WORKING_DIR)
 DATA_DIR = os.path.join(WORKING_DIR, 'data')
 TRAIN_DIR = os.path.join(DATA_DIR, 'train')
 TEST_DIR = os.path.join(DATA_DIR, 'test')
